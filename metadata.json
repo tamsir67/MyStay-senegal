@@ -1,0 +1,6 @@
+{
+  "name": "MyStay Sénégal",
+  "description": "Plateforme d'éco-tourisme et d'hébergements authentiques au Sénégal. Découvrez les régions, réservez des séjours solidaires et vivez l'expérience de la Teranga.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
