@@ -55,7 +55,10 @@ data class UiState(
     
     // Video preview dialog state
     val activeVideoUrl: String? = null,
-    val activeVideoTitle: String? = null
+    val activeVideoTitle: String? = null,
+
+    // Web Platform display mode (Enabled by default as requested to test product immediately)
+    val isWebDisplayMode: Boolean = true
 )
 
 class MyStayViewModel : ViewModel() {
@@ -125,6 +128,10 @@ class MyStayViewModel : ViewModel() {
 
     fun selectListing(listing: Listing?) {
         _uiState.value = _uiState.value.copy(selectedListing = listing)
+    }
+
+    fun toggleWebDisplayMode() {
+        _uiState.value = _uiState.value.copy(isWebDisplayMode = !_uiState.value.isWebDisplayMode)
     }
 
     // Video viewer modal

@@ -139,4 +139,13 @@ class MyStayViewModelTest {
         assertFalse(lastMsg.isFromUser)
         assertTrue(lastMsg.text.contains("Salaamaalekum") || lastMsg.text.contains("Nanga def"))
     }
+
+    @Test
+    fun testToggleWebDisplayMode() {
+        assertTrue(viewModel.uiState.value.isWebDisplayMode)
+        viewModel.toggleWebDisplayMode()
+        assertFalse(viewModel.uiState.value.isWebDisplayMode)
+        viewModel.toggleWebDisplayMode()
+        assertTrue(viewModel.uiState.value.isWebDisplayMode)
+    }
 }

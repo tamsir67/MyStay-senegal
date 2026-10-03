@@ -47,6 +47,12 @@ fun MainAppScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Web Platform Screen if Web mode is active
+    if (uiState.isWebDisplayMode) {
+        WebPlatformScreen(onSwitchToNative = viewModel::toggleWebDisplayMode)
+        return
+    }
+
     // Detail Screen if a listing is currently selected
     if (uiState.selectedListing != null) {
         val listing = uiState.selectedListing!!

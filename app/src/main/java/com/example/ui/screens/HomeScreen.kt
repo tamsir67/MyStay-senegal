@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Person
@@ -98,7 +99,8 @@ fun HomeScreen(
                 onSearchChange = viewModel::onSearchQueryChange,
                 currentUser = uiState.currentUser,
                 onOpenAuth = { viewModel.openAuthModal(AuthMode.LOGIN) },
-                onLogout = viewModel::logout
+                onLogout = viewModel::logout,
+                onSwitchToWeb = viewModel::toggleWebDisplayMode
             )
         }
 
@@ -428,7 +430,8 @@ private fun HeroHeaderSection(
     onSearchChange: (String) -> Unit,
     currentUser: com.example.model.User?,
     onOpenAuth: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSwitchToWeb: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -505,61 +508,93 @@ private fun HeroHeaderSection(
                     }
                 }
 
-                // Auth Profile Button / Indicator
-                if (currentUser != null) {
+                // Action buttons (Vue Web & Connexion/Profil)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Switch to Web mode button
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = Color.Black.copy(alpha = 0.55f),
-                        modifier = Modifier.clickable { onLogout() }
+                        color = TerangaGold.copy(alpha = 0.95f),
+                        modifier = Modifier
+                            .clickable { onSwitchToWeb() }
+                            .testTag("switch_to_web_button")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(TerangaGold),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = currentUser.avatarInitials,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Laptop,
+                                contentDescription = null,
+                                tint = Color(0xFF1E1408),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = currentUser.name.split(" ").firstOrNull() ?: "",
-                                color = Color.White,
+                                text = "Vue Web",
+                                color = Color(0xFF1E1408),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                             )
                         }
                     }
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = TerangaTerracotta,
-                        modifier = Modifier.clickable { onOpenAuth() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Auth Profile Button / Indicator
+                    if (currentUser != null) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.Black.copy(alpha = 0.55f),
+                            modifier = Modifier.clickable { onLogout() }
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Login,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Connexion",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(TerangaGold),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = currentUser.avatarInitials,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = currentUser.name.split(" ").firstOrNull() ?: "",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = TerangaTerracotta,
+                            modifier = Modifier.clickable { onOpenAuth() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Login,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Connexion",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
                         }
                     }
                 }
