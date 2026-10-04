@@ -114,7 +114,7 @@ fun WebPlatformScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Affichage Web",
+                                text = "Ordinateur Windows (PC)",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -123,7 +123,7 @@ fun WebPlatformScreen(
                                 color = TerangaGreenLight
                             ) {
                                 Text(
-                                    text = "React + Vite",
+                                    text = "Version Bureau Widescreen",
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
@@ -133,7 +133,7 @@ fun WebPlatformScreen(
                             }
                         }
                         Text(
-                            text = "Version web interactive complète",
+                            text = "Affichage PC 1920x1080 & simulateur Windows 11",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -177,12 +177,14 @@ fun WebPlatformScreen(
                 factory = { context ->
                     WebView(context).apply {
                         settings.apply {
+                            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                             javaScriptEnabled = true
                             domStorageEnabled = true
                             allowFileAccess = true
                             allowContentAccess = true
                             loadWithOverviewMode = true
                             useWideViewPort = true
+                            setSupportZoom(true)
                             builtInZoomControls = true
                             displayZoomControls = false
                             cacheMode = WebSettings.LOAD_DEFAULT

@@ -4,19 +4,26 @@ import {
   Sparkles, Check, ChevronRight, ShieldCheck, 
   MessageSquare, User as UserIcon, Building2, Send, X, Share2, 
   DollarSign, Plus, Video, Play, LogIn, UserPlus, LogOut, CheckCircle,
-  Eye, Phone, Mail, Award, ArrowLeft
+  Eye, Phone, Mail, Award, ArrowLeft, Monitor, Laptop, Smartphone,
+  RotateCcw, Globe, Maximize2, Minimize2
 } from 'lucide-react';
 import { 
   SENEGAL_LISTINGS, SENEGAL_REGIONS, ALL_14_REGIONS, SAMPLE_USERS,
   Listing, Region, User
 } from './data/senegalListings';
+import { db, HebergementComplet } from './data/relationalDatabase';
 
 export default function App() {
+  // Device Simulation View ('full' = Normal Computer Desktop mode, 'windows' = Windows 11 Window frame, 'mobile' = Phone mode)
+  const [deviceView, setDeviceView] = useState<'windows' | 'full' | 'mobile'>('full');
+  const [desktopZoom, setDesktopZoom] = useState<number>(100);
   const [listings, setListings] = useState<Listing[]>(SENEGAL_LISTINGS);
-  const [activeTab, setActiveTab] = useState<'explore' | 'regions' | 'trips' | 'koumba' | 'host'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'regions' | 'trips' | 'koumba' | 'host' | 'tables'>('explore');
   const [selectedRegion, setSelectedRegion] = useState<string>('Toutes');
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('Tous');
   const [selectedCategory, setSelectedCategory] = useState<string>('Tous');
   const [ecoOnly, setEcoOnly] = useState<boolean>(false);
+  const [selectedTableTab, setSelectedTableTab] = useState<string>('Hebergement');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [favorites, setFavorites] = useState<string[]>(['saloum-lodge', 'goree-demeure']);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -102,10 +109,12 @@ export default function App() {
       item.category.toLowerCase().includes(q);
     
     const matchRegion = selectedRegion === 'Toutes' || item.region.toLowerCase() === selectedRegion.toLowerCase();
+    const siteObj = db.sites.find(s => s.Site_ID === selectedSiteId);
+    const matchSite = selectedSiteId === 'Tous' || (siteObj && (item.location.toLowerCase().includes(siteObj.Localite.toLowerCase()) || item.location.toLowerCase().includes(siteObj.Nom_site.toLowerCase()) || item.title.toLowerCase().includes(siteObj.Nom_site.toLowerCase())));
     const matchCategory = selectedCategory === 'Tous' || item.category === selectedCategory;
     const matchEco = !ecoOnly || item.ecoImpactPercent >= 10;
 
-    return matchSearch && matchRegion && matchCategory && matchEco;
+    return matchSearch && matchRegion && matchSite && matchCategory && matchEco;
   });
 
   // Handle Login
@@ -219,16 +228,75 @@ export default function App() {
 
   const handleConfirmBooking = () => {
     if (!selectedListing) return;
-    const total = selectedListing.priceXof * bookingNights;
+    const montantNuitees = selectedListing.priceXof * bookingNights;
+    const fraisMenage = 5000;
+    const commissionPourcent = db.getCommissionPourcent(); // 12% from SET-002
+    const fraisService = Math.round(montantNuitees * (commissionPourcent / 100));
+    const total = montantNuitees + fraisMenage + fraisService;
+    const refCode = 'TERANGA-' + Math.floor(1000 + Math.random() * 9000);
+    const resId = "RES-" + Date.now().toString().slice(-5);
+
+    // Relational table records
+    db.reservations.unshift({
+      Reservation_ID: resId,
+      Hebergement_ID: (selectedListing as any).Hebergement_ID || selectedListing.id,
+      Voyageur_ID: currentUser ? currentUser.id : "USR-VYG-001",
+      Date_arrivee: "2026-11-15",
+      Date_depart: "2026-11-19",
+      Nombre_nuits: bookingNights,
+      Nombre_voyageurs: bookingGuests,
+      Montant_nuitees_XOF: montantNuitees,
+      Frais_menage_XOF: fraisMenage,
+      Frais_service_XOF: fraisService,
+      Taxes_XOF: 0,
+      Montant_total_XOF: total,
+      Statut_reservation: "Confirmee",
+      Statut_paiement: "Paye",
+      Code_acces: refCode,
+      Date_creation: "2026-10-03",
+      Notes: "Réservation confirmée avec calcul 12% commission MyStay"
+    });
+
+    db.paiements.unshift({
+      Paiement_ID: "PAY-" + Date.now().toString().slice(-5),
+      Reservation_ID: resId,
+      Canal_paiement: "Wave",
+      Reference_transaction: "TX-WAVE-" + Math.floor(100000 + Math.random() * 900000),
+      Montant_XOF: total,
+      Devise: "XOF",
+      Frais_transaction_XOF: 0,
+      Statut_paiement: "Confirme",
+      Date_initiee: "2026-10-03",
+      Date_confirmee: "2026-10-03",
+      Webhook_recu: "Oui",
+      Remboursement_XOF: 0,
+      Notes_admin: "Transaction Wave instantanée"
+    });
+
+    db.reversements.unshift({
+      Reversement_ID: "REV-" + Date.now().toString().slice(-5),
+      Reservation_ID: resId,
+      Hote_ID: "USR-HOT-001",
+      Montant_brut_XOF: montantNuitees,
+      Commission_MyStay_XOF: fraisService,
+      Frais_transaction_XOF: 0,
+      Montant_net_XOF: montantNuitees - fraisService,
+      Canal_reversement: "Orange Money",
+      Statut_reversement: "A_preparer",
+      Date_prevue: "2026-11-16",
+      Date_effective: "",
+      Reference_reversement: "OM-SN-" + Math.floor(10000 + Math.random() * 90000)
+    });
+
     const newBooking = {
-      id: 'bk_' + Date.now(),
+      id: resId,
       listing: selectedListing,
-      checkIn: '10 Déc 2026',
-      checkOut: '14 Déc 2026',
+      checkIn: '15 Nov 2026',
+      checkOut: '19 Nov 2026',
       nights: bookingNights,
       guests: bookingGuests,
       totalXof: total,
-      ref: 'TERANGA-' + Math.floor(1000 + Math.random() * 9000),
+      ref: refCode,
       status: 'Confirmé'
     };
 
@@ -236,7 +304,7 @@ export default function App() {
     setBookingModalOpen(false);
     setSelectedListing(null);
     setActiveTab('trips');
-    setBookingSuccessNotice('Félicitations ! Votre séjour solidaire au Sénégal a été confirmé.');
+    setBookingSuccessNotice(`Réservation ${resId} confirmée ! Paiement Wave de ${total.toLocaleString()} CFA validé (Commission plateforme 12% : ${fraisService.toLocaleString()} CFA).`);
   };
 
   const openVideo = (videoUrl: string, title: string) => {
@@ -281,7 +349,185 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1C1917]">
+    <div className={`min-h-screen flex flex-col ${deviceView === 'windows' ? 'bg-[#18181B] p-2 sm:p-4 text-white' : 'bg-[#FAF7F2] text-[#1C1917]'}`}>
+      
+      {/* WINDOWS 11 DESKTOP COMPUTER FRAME HEADER */}
+      {deviceView === 'windows' && (
+        <div className="bg-[#202020] text-stone-200 rounded-t-2xl border border-stone-700 shadow-2xl overflow-hidden select-none mb-0">
+          {/* Windows Title Bar */}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#181818] border-b border-stone-800 text-xs">
+            <div className="flex items-center gap-2">
+              {/* Windows 11 Logo (4 blue squares) */}
+              <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
+                <div className="bg-[#0078D4] rounded-[1px]"></div>
+                <div className="bg-[#0078D4] rounded-[1px]"></div>
+                <div className="bg-[#0078D4] rounded-[1px]"></div>
+                <div className="bg-[#0078D4] rounded-[1px]"></div>
+              </div>
+
+              {/* Active Tab */}
+              <div className="flex items-center gap-2 bg-[#282828] text-white px-3 py-1 rounded-t-lg border-t-2 border-[#0078D4] text-xs font-semibold max-w-[320px] truncate">
+                <Globe className="w-3.5 h-3.5 text-[#F59E0B]" />
+                <span className="truncate">🇸🇳 MyStay Sénégal — Version Ordinateur Windows</span>
+              </div>
+            </div>
+
+            {/* Windows Window Controls (Minimize, Maximize, Close) */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-stone-400 hidden md:inline font-mono">Écran PC Widescreen (1920x1080)</span>
+              <div className="flex items-center ml-2">
+                <button 
+                  onClick={() => alert("Simulation Windows : Fenêtre active sur bureau Windows 11.")}
+                  className="px-2.5 py-1 hover:bg-stone-700 text-stone-300 text-xs transition"
+                  title="Réduire"
+                >
+                  —
+                </button>
+                <button 
+                  onClick={() => setDeviceView('full')}
+                  className="px-2.5 py-1 hover:bg-stone-700 text-stone-300 text-xs transition"
+                  title="Plein écran PC"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                </button>
+                <button 
+                  onClick={() => setDeviceView('mobile')}
+                  className="px-3 py-1 hover:bg-red-600 hover:text-white text-stone-300 text-xs transition"
+                  title="Basculer vers vue mobile"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Browser Navigation Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-[#242424] border-b border-stone-700 text-xs">
+            {/* Back, Forward, Refresh */}
+            <div className="flex items-center gap-1.5 text-stone-300">
+              <button 
+                onClick={() => { setSelectedListing(null); }}
+                className="p-1 rounded hover:bg-stone-700 transition" 
+                title="Page précédente"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="p-1 rounded hover:bg-stone-700 transition" 
+                title="Recharger la page"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* URL Address Bar */}
+            <div className="flex-1 max-w-xl mx-2 bg-[#1B1B1B] text-stone-200 px-3 py-1 rounded-full border border-stone-600 flex items-center gap-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              <span className="text-[11px] font-mono text-stone-300 truncate">
+                https://www.mystay-senegal.sn/{activeTab}{selectedListing ? `/${selectedListing.id}` : ''}
+              </span>
+            </div>
+
+            {/* View Mode Switcher Buttons */}
+            <div className="flex items-center gap-1.5">
+              <div className="bg-[#181818] p-0.5 rounded-lg border border-stone-600 flex items-center">
+                <button
+                  onClick={() => setDeviceView('full')}
+                  className="px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition text-stone-400 hover:text-white"
+                  title="Affichage normal écran d'ordinateur (plein écran)"
+                >
+                  <Monitor className="w-3 h-3" />
+                  <span>Ordinateur Normal</span>
+                </button>
+                <button
+                  onClick={() => setDeviceView('windows')}
+                  className="px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition bg-[#0078D4] text-white shadow"
+                  title="Cadre simulateur Windows 11"
+                >
+                  <Laptop className="w-3 h-3" />
+                  <span>Fenêtre Win 11</span>
+                </button>
+                <button
+                  onClick={() => setDeviceView('mobile')}
+                  className="px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition text-stone-400 hover:text-white"
+                  title="Affichage format téléphone mobile"
+                >
+                  <Smartphone className="w-3 h-3" />
+                  <span>Mobile</span>
+                </button>
+              </div>
+
+              {/* Zoom controls */}
+              <div className="hidden sm:flex items-center bg-[#181818] rounded-lg border border-stone-600 px-1 py-0.5 text-[10px] text-stone-300">
+                <button 
+                  onClick={() => setDesktopZoom(prev => Math.max(60, prev - 15))}
+                  className="px-1.5 py-0.5 hover:bg-stone-700 rounded"
+                  title="Zoom -"
+                >
+                  -
+                </button>
+                <span className="px-1 font-mono">{desktopZoom}%</span>
+                <button 
+                  onClick={() => setDesktopZoom(prev => Math.min(125, prev + 15))}
+                  className="px-1.5 py-0.5 hover:bg-stone-700 rounded"
+                  title="Zoom +"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING BAR WHEN NOT IN WINDOWS CHROME MODE */}
+      {deviceView !== 'windows' && (
+        <div className="bg-[#1C1917] text-white px-4 py-2 flex flex-wrap items-center justify-between text-xs sticky top-0 z-40 shadow-md gap-2">
+          <div className="flex items-center gap-2">
+            <Monitor className="w-4 h-4 text-[#D97706]" />
+            <span className="font-bold">
+              {deviceView === 'full' ? '💻 Affichage Ordinateur Normal (Version Windows / PC)' : '📱 Mode Smartphone Mobile'}
+            </span>
+            <span className="text-stone-400 hidden md:inline">| MyStay Voyager Sénégal</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="bg-stone-800 p-0.5 rounded-lg border border-stone-700 flex items-center">
+              <button
+                onClick={() => setDeviceView('full')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition ${deviceView === 'full' ? 'bg-[#C2410C] text-white shadow' : 'text-stone-400 hover:text-white'}`}
+                title="Affichage normal écran d'ordinateur"
+              >
+                <Monitor className="w-3 h-3" />
+                <span>Ordinateur Normal</span>
+              </button>
+              <button
+                onClick={() => setDeviceView('windows')}
+                className="px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition text-stone-400 hover:text-white"
+                title="Cadre simulateur Windows 11"
+              >
+                <Laptop className="w-3 h-3" />
+                <span>Fenêtre Win 11</span>
+              </button>
+              <button
+                onClick={() => setDeviceView('mobile')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition ${deviceView === 'mobile' ? 'bg-[#0D9488] text-white shadow' : 'text-stone-400 hover:text-white'}`}
+                title="Format smartphone"
+              >
+                <Smartphone className="w-3 h-3" />
+                <span>Mobile</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INNER PLATFORM CONTAINER */}
+      <div 
+        className={`flex-1 flex flex-col bg-[#FAF7F2] text-[#1C1917] ${deviceView === 'windows' ? 'rounded-b-none border-x border-stone-700 overflow-x-auto w-full' : (deviceView === 'mobile' ? 'max-w-md mx-auto my-3 rounded-3xl shadow-2xl border-4 border-stone-800 overflow-hidden' : 'w-full')}`}
+        style={deviceView === 'windows' && desktopZoom !== 100 ? { zoom: `${desktopZoom}%` } : undefined}
+      >
       {/* Toast Notice */}
       {(authNotice || bookingSuccessNotice) && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#15803D] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-bold border border-green-400/40 animate-bounce">
@@ -342,6 +588,15 @@ export default function App() {
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition ${activeTab === 'host' ? 'bg-[#1C1917] text-white shadow' : 'text-[#57534E] hover:bg-[#F5F2EB]'}`}
             >
               Hôte
+            </button>
+            <button 
+              onClick={() => { setActiveTab('tables'); setSelectedListing(null); }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-1 ${activeTab === 'tables' ? 'bg-[#0078D4] text-white shadow' : 'text-[#0078D4] bg-[#0078D4]/10 hover:bg-[#0078D4]/20'}`}
+              title="Consulter les 16 tables relationnelles et l'architecture des données"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tables & Base (16)</span>
+              <span className="sm:hidden">Tables</span>
             </button>
           </nav>
 
@@ -431,16 +686,34 @@ export default function App() {
                   </div>
 
                   {/* 14 REGIONS DROPDOWN SELECTOR (MANDATORY USER REQUEST) */}
-                  <div className="flex items-center gap-2 px-3 py-1 w-full md:w-64 border-b md:border-b-0 md:border-r border-[#E7E5E4]">
+                  <div className="flex items-center gap-2 px-3 py-1 w-full md:w-56 border-b md:border-b-0 md:border-r border-[#E7E5E4]">
                     <Compass className="w-4 h-4 text-[#D97706] flex-shrink-0" />
                     <select
                       value={selectedRegion}
-                      onChange={e => setSelectedRegion(e.target.value)}
+                      onChange={e => {
+                        setSelectedRegion(e.target.value);
+                        setSelectedSiteId('Tous');
+                      }}
                       className="w-full bg-transparent text-xs sm:text-sm font-semibold focus:outline-none text-[#1C1917] cursor-pointer"
                     >
-                      <option value="Toutes">🌍 Toutes les 14 régions</option>
-                      {ALL_14_REGIONS.map(reg => (
-                        <option key={reg} value={reg}>📍 {reg}</option>
+                      <option value="Toutes">🌍 14 régions du Sénégal</option>
+                      {db.regions.map(reg => (
+                        <option key={reg.Region_ID} value={reg.Nom_region}>📍 {reg.Nom_region} ({reg.Code_region})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* SITES REMARQUABLES SELECTOR (TABLE SITE) */}
+                  <div className="flex items-center gap-2 px-3 py-1 w-full md:w-52 border-b md:border-b-0 md:border-r border-[#E7E5E4]">
+                    <MapPin className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
+                    <select
+                      value={selectedSiteId}
+                      onChange={e => setSelectedSiteId(e.target.value)}
+                      className="w-full bg-transparent text-xs font-semibold focus:outline-none text-[#1C1917] cursor-pointer"
+                    >
+                      <option value="Tous">🏞️ Tous les sites remarquables</option>
+                      {db.sites.map(s => (
+                        <option key={s.Site_ID} value={s.Site_ID}>🌿 {s.Nom_site}</option>
                       ))}
                     </select>
                   </div>
@@ -1226,6 +1499,463 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* TABLES & RELATIONAL DATABASE EXPLORER TAB (16 TABLES TRANSMISES) */}
+        {activeTab === 'tables' && (
+          <div className="space-y-6">
+            {/* Header with Stats & Platform Parameters */}
+            <div className="bg-[#1C1917] text-white p-6 rounded-3xl shadow-xl space-y-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                  <span className="bg-[#0078D4] text-white px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider">
+                    Architecture Relationnelle & Schéma SQL / Types
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-bold font-serif mt-2">
+                    Base de Données MyStay Sénégal — 16 Tables & Relations
+                  </h2>
+                  <p className="text-xs sm:text-sm text-stone-300 max-w-2xl mt-1">
+                    Visualisation interactive des 16 tables relationnelles, des clés étrangères (Foreign Keys), des paramètres financiers et des flux de données.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="bg-white/10 px-3 py-1.5 rounded-xl text-center border border-white/10">
+                    <span className="block text-xs text-stone-300">Devise</span>
+                    <span className="text-sm font-bold text-amber-400">XOF (FCFA)</span>
+                  </div>
+                  <div className="bg-white/10 px-3 py-1.5 rounded-xl text-center border border-white/10">
+                    <span className="block text-xs text-stone-300">Commission</span>
+                    <span className="text-sm font-bold text-green-400">12%</span>
+                  </div>
+                  <div className="bg-white/10 px-3 py-1.5 rounded-xl text-center border border-white/10">
+                    <span className="block text-xs text-stone-300">Min. Engagements</span>
+                    <span className="text-sm font-bold text-cyan-400">3 durables</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Relational Schema Flow Banner */}
+              <div className="bg-stone-900/80 p-3.5 rounded-2xl border border-stone-700 text-xs text-stone-300 flex flex-wrap items-center gap-2">
+                <span className="font-bold text-amber-400 flex items-center gap-1">🔗 Relations Clés :</span>
+                <span className="bg-stone-800 px-2 py-0.5 rounded border border-stone-700">Region (14) ➔ Site ➔ Hebergement</span>
+                <span className="text-stone-500">|</span>
+                <span className="bg-stone-800 px-2 py-0.5 rounded border border-stone-700">Hebergement ➔ Equipements & Engagements</span>
+                <span className="text-stone-500">|</span>
+                <span className="bg-stone-800 px-2 py-0.5 rounded border border-stone-700">Reservation ➔ Paiement (Wave/OM) ➔ Reversement (Net Hôte)</span>
+              </div>
+            </div>
+
+            {/* Table Selection Pills */}
+            <div className="bg-white p-3 rounded-2xl border border-[#E7E5E4] shadow-sm">
+              <span className="text-xs font-bold text-[#78716C] uppercase tracking-wider block mb-2 px-1">
+                Sélectionnez une table à inspecter (16 tables) :
+              </span>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {[
+                  { name: 'Hebergement', count: db.hebergements.length },
+                  { name: 'Region', count: db.regions.length },
+                  { name: 'Site', count: db.sites.length },
+                  { name: 'Reservation', count: db.reservations.length },
+                  { name: 'Paiement', count: db.paiements.length },
+                  { name: 'Reversement', count: db.reversements.length },
+                  { name: 'Equipement', count: db.equipements.length },
+                  { name: 'Engagement', count: db.engagements.length },
+                  { name: 'Hebergement_Equipement', count: db.hebergementEquipements.length },
+                  { name: 'Hebergement_Engagement', count: db.hebergementEngagements.length },
+                  { name: 'Experience', count: db.experiences.length },
+                  { name: 'Avis', count: db.avis.length },
+                  { name: 'Utilisateur', count: db.utilisateurs.length },
+                  { name: 'Parametre', count: db.parametres.length },
+                  { name: 'Disponibilite', count: db.disponibilites.length },
+                  { name: 'Contenu', count: db.contenus.length }
+                ].map(tbl => (
+                  <button
+                    key={tbl.name}
+                    onClick={() => setSelectedTableTab(tbl.name)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 ${selectedTableTab === tbl.name ? 'bg-[#0078D4] text-white shadow' : 'bg-[#FAF7F2] text-[#57534E] hover:bg-[#EFECE6]'}`}
+                  >
+                    <span>{tbl.name}</span>
+                    <span className="opacity-75 text-[10px]">({tbl.count})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Table Records Inspector */}
+            <div className="bg-white rounded-2xl border border-[#E7E5E4] p-5 shadow-sm overflow-hidden space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-lg font-serif">
+                    Table : <span className="text-[#0078D4] font-mono">{selectedTableTab}</span>
+                  </h3>
+                  <p className="text-xs text-[#78716C]">
+                    Données réelles issues du modèle relationnel MyStay Sénégal
+                  </p>
+                </div>
+                <span className="text-xs font-bold bg-[#F0FDFA] text-[#0F766E] px-3 py-1 rounded-full border border-[#CCFBF1]">
+                  Relations jointes et intégrité référentielle actives
+                </span>
+              </div>
+
+              {/* Table Render Container */}
+              <div className="overflow-x-auto max-h-[500px] border border-[#E7E5E4] rounded-xl">
+                {selectedTableTab === 'Region' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Region_ID</th>
+                        <th className="p-3">Nom_region</th>
+                        <th className="p-3">Code</th>
+                        <th className="p-3">Description</th>
+                        <th className="p-3">Statut</th>
+                        <th className="p-3">Ordre</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.regions.map(r => (
+                        <tr key={r.Region_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#C2410C]">{r.Region_ID}</td>
+                          <td className="p-3 font-bold">{r.Nom_region}</td>
+                          <td className="p-3 font-mono">{r.Code_region}</td>
+                          <td className="p-3 text-[#57534E]">{r.Description}</td>
+                          <td className="p-3"><span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-[10px] font-bold">{r.Statut}</span></td>
+                          <td className="p-3 font-mono">{r.Ordre_affichage}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Site' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Site_ID</th>
+                        <th className="p-3">Nom_site</th>
+                        <th className="p-3">Region_ID (FK)</th>
+                        <th className="p-3">Departement</th>
+                        <th className="p-3">Localite</th>
+                        <th className="p-3">Type_site</th>
+                        <th className="p-3">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.sites.map(s => (
+                        <tr key={s.Site_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#0D9488]">{s.Site_ID}</td>
+                          <td className="p-3 font-bold">{s.Nom_site}</td>
+                          <td className="p-3 font-mono font-bold text-[#C2410C]">{s.Region_ID}</td>
+                          <td className="p-3">{s.Departement}</td>
+                          <td className="p-3">{s.Localite}</td>
+                          <td className="p-3"><span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[10px] font-bold">{s.Type_site}</span></td>
+                          <td className="p-3"><span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-[10px] font-bold">{s.Statut_validation}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Hebergement' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Hebergement_ID</th>
+                        <th className="p-3">Titre</th>
+                        <th className="p-3">Hote_ID (FK)</th>
+                        <th className="p-3">Region_ID (FK)</th>
+                        <th className="p-3">Site_ID (FK)</th>
+                        <th className="p-3">Prix_nuit (XOF)</th>
+                        <th className="p-3">Ménage</th>
+                        <th className="p-3">Capacité</th>
+                        <th className="p-3">Mode</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.hebergements.map(h => (
+                        <tr key={h.Hebergement_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#C2410C]">{h.Hebergement_ID}</td>
+                          <td className="p-3 font-bold">{h.Titre}</td>
+                          <td className="p-3 font-mono text-[#78350F]">{h.Hote_ID}</td>
+                          <td className="p-3 font-mono font-bold text-[#C2410C]">{h.Region_ID}</td>
+                          <td className="p-3 font-mono font-bold text-[#0D9488]">{h.Site_ID}</td>
+                          <td className="p-3 font-bold text-[#C2410C]">{h.Prix_nuit_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3">{h.Frais_menage_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3">{h.Capacite} pers ({h.Chambres} ch)</td>
+                          <td className="p-3"><span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">{h.Mode_reservation}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Reservation' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Reservation_ID</th>
+                        <th className="p-3">Hebergement_ID</th>
+                        <th className="p-3">Voyageur_ID</th>
+                        <th className="p-3">Nuits</th>
+                        <th className="p-3">Nuitées</th>
+                        <th className="p-3">Frais Service (12%)</th>
+                        <th className="p-3">Total XOF</th>
+                        <th className="p-3">Statut</th>
+                        <th className="p-3">Code Accès</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.reservations.map(res => (
+                        <tr key={res.Reservation_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#0078D4]">{res.Reservation_ID}</td>
+                          <td className="p-3 font-mono font-bold text-[#C2410C]">{res.Hebergement_ID}</td>
+                          <td className="p-3 font-mono">{res.Voyageur_ID}</td>
+                          <td className="p-3">{res.Nombre_nuits} nuits</td>
+                          <td className="p-3">{res.Montant_nuitees_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3 font-bold text-green-700">+{res.Frais_service_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3 font-extrabold text-[#C2410C]">{res.Montant_total_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3"><span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-[10px] font-bold">{res.Statut_reservation}</span></td>
+                          <td className="p-3 font-mono font-bold">{res.Code_acces}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Paiement' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Paiement_ID</th>
+                        <th className="p-3">Reservation_ID (FK)</th>
+                        <th className="p-3">Canal</th>
+                        <th className="p-3">Référence Transaction</th>
+                        <th className="p-3">Montant XOF</th>
+                        <th className="p-3">Statut</th>
+                        <th className="p-3">Webhook Reçu</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.paiements.map(p => (
+                        <tr key={p.Paiement_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#15803D]">{p.Paiement_ID}</td>
+                          <td className="p-3 font-mono font-bold text-[#0078D4]">{p.Reservation_ID}</td>
+                          <td className="p-3"><span className="bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded">{p.Canal_paiement}</span></td>
+                          <td className="p-3 font-mono text-stone-600">{p.Reference_transaction}</td>
+                          <td className="p-3 font-bold text-[#C2410C]">{p.Montant_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3"><span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-[10px] font-bold">{p.Statut_paiement}</span></td>
+                          <td className="p-3 font-bold">{p.Webhook_recu}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Reversement' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Reversement_ID</th>
+                        <th className="p-3">Reservation_ID</th>
+                        <th className="p-3">Hote_ID</th>
+                        <th className="p-3">Montant Brut</th>
+                        <th className="p-3">Commission MyStay (-12%)</th>
+                        <th className="p-3">Montant Net Hôte</th>
+                        <th className="p-3">Canal</th>
+                        <th className="p-3">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.reversements.map(rev => (
+                        <tr key={rev.Reversement_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-purple-700">{rev.Reversement_ID}</td>
+                          <td className="p-3 font-mono font-bold text-[#0078D4]">{rev.Reservation_ID}</td>
+                          <td className="p-3 font-mono">{rev.Hote_ID}</td>
+                          <td className="p-3">{rev.Montant_brut_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3 text-red-600 font-bold">-{rev.Commission_MyStay_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3 font-bold text-[#15803D]">{rev.Montant_net_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3">{rev.Canal_reversement}</td>
+                          <td className="p-3"><span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[10px] font-bold">{rev.Statut_reversement}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Parametre' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Parametre_ID</th>
+                        <th className="p-3">Clé</th>
+                        <th className="p-3">Valeur</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Description</th>
+                        <th className="p-3">Modifiable Admin</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.parametres.map(pm => (
+                        <tr key={pm.Parametre_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#C2410C]">{pm.Parametre_ID}</td>
+                          <td className="p-3 font-mono font-bold">{pm.Cle}</td>
+                          <td className="p-3 font-bold text-green-700">{pm.Valeur}</td>
+                          <td className="p-3">{pm.Type}</td>
+                          <td className="p-3 text-[#57534E]">{pm.Description}</td>
+                          <td className="p-3">{pm.Modifiable_admin}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Engagement' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Engagement_ID</th>
+                        <th className="p-3">Nom</th>
+                        <th className="p-3">Catégorie</th>
+                        <th className="p-3">Description</th>
+                        <th className="p-3">Preuve requise</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.engagements.map(eng => (
+                        <tr key={eng.Engagement_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#0D9488]">{eng.Engagement_ID}</td>
+                          <td className="p-3 font-bold">{eng.Nom}</td>
+                          <td className="p-3"><span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded text-[10px] font-bold">{eng.Categorie}</span></td>
+                          <td className="p-3 text-[#57534E]">{eng.Description}</td>
+                          <td className="p-3 text-stone-500">{eng.Preuve_requise}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Equipement' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Equipement_ID</th>
+                        <th className="p-3">Nom</th>
+                        <th className="p-3">Catégorie</th>
+                        <th className="p-3">Actif</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.equipements.map(eq => (
+                        <tr key={eq.Equipement_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#78350F]">{eq.Equipement_ID}</td>
+                          <td className="p-3 font-bold">{eq.Nom}</td>
+                          <td className="p-3">{eq.Categorie}</td>
+                          <td className="p-3"><span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-[10px] font-bold">{eq.Actif}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Experience' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Experience_ID</th>
+                        <th className="p-3">Titre</th>
+                        <th className="p-3">Region_ID</th>
+                        <th className="p-3">Site_ID</th>
+                        <th className="p-3">Durée</th>
+                        <th className="p-3">Prix XOF</th>
+                        <th className="p-3">Capacité</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.experiences.map(exp => (
+                        <tr key={exp.Experience_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#D97706]">{exp.Experience_ID}</td>
+                          <td className="p-3 font-bold">{exp.Titre}</td>
+                          <td className="p-3 font-mono">{exp.Region_ID}</td>
+                          <td className="p-3 font-mono">{exp.Site_ID}</td>
+                          <td className="p-3">{exp.Duree}</td>
+                          <td className="p-3 font-bold text-[#C2410C]">{exp.Prix_XOF.toLocaleString()} CFA</td>
+                          <td className="p-3">{exp.Capacite_max} personnes</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Avis' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Avis_ID</th>
+                        <th className="p-3">Reservation_ID</th>
+                        <th className="p-3">Hebergement_ID</th>
+                        <th className="p-3">Note Globale</th>
+                        <th className="p-3">Accueil</th>
+                        <th className="p-3">Authenticité</th>
+                        <th className="p-3">Durabilité</th>
+                        <th className="p-3">Commentaire</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.avis.map(av => (
+                        <tr key={av.Avis_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-amber-700">{av.Avis_ID}</td>
+                          <td className="p-3 font-mono">{av.Reservation_ID}</td>
+                          <td className="p-3 font-mono">{av.Hebergement_ID}</td>
+                          <td className="p-3 font-bold text-amber-600">★ {av.Note_globale}</td>
+                          <td className="p-3 font-semibold">{av.Note_accueil}/5</td>
+                          <td className="p-3 font-semibold">{av.Note_authenticite}/5</td>
+                          <td className="p-3 font-semibold text-emerald-700">{av.Note_durabilite}/5</td>
+                          <td className="p-3 text-[#57534E] italic">{av.Commentaire}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedTableTab === 'Utilisateur' && (
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#FAF7F2] text-[#1C1917] border-b border-[#E7E5E4] sticky top-0">
+                      <tr>
+                        <th className="p-3">Utilisateur_ID</th>
+                        <th className="p-3">Nom Complet</th>
+                        <th className="p-3">Email</th>
+                        <th className="p-3">Téléphone</th>
+                        <th className="p-3">Rôle</th>
+                        <th className="p-3">Statut Compte</th>
+                        <th className="p-3">Vérification</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F5F2EB]">
+                      {db.utilisateurs.map(u => (
+                        <tr key={u.Utilisateur_ID} className="hover:bg-[#FAF7F2]">
+                          <td className="p-3 font-mono font-bold text-[#C2410C]">{u.Utilisateur_ID}</td>
+                          <td className="p-3 font-bold">{u.Prenom} {u.Nom}</td>
+                          <td className="p-3 font-mono">{u.Email}</td>
+                          <td className="p-3">{u.Telephone || '-'}</td>
+                          <td className="p-3"><span className="bg-stone-200 text-stone-800 px-2 py-0.5 rounded font-bold">{u.Role}</span></td>
+                          <td className="p-3"><span className="bg-green-100 text-green-800 px-2 py-0.5 rounded font-bold">{u.Statut_compte}</span></td>
+                          <td className="p-3"><span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold">{u.Statut_verification}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* Generic fallback for linking tables */}
+                {['Hebergement_Equipement', 'Hebergement_Engagement', 'Disponibilite', 'Contenu'].includes(selectedTableTab) && (
+                  <div className="p-6 text-center text-xs text-[#78716C]">
+                    <span className="font-bold text-sm block mb-1">Table de Liaison & Contenus : {selectedTableTab}</span>
+                    <p>Contient les relations de clés étrangères reliant les hébergements aux équipements et engagements durables certifiés.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* FOOTER */}
@@ -1717,6 +2447,54 @@ export default function App() {
               >
                 Fermer la vidéo
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close inner platform container */}
+      </div>
+
+      {/* WINDOWS 11 TASKBAR SIMULATION */}
+      {deviceView === 'windows' && (
+        <div className="bg-[#181818] text-stone-200 border border-stone-700 rounded-b-2xl px-4 py-2 flex items-center justify-between select-none shadow-2xl text-xs z-30">
+          {/* Windows Start Button & Centered Icons */}
+          <div className="flex items-center gap-3">
+            {/* Windows 11 Start Icon */}
+            <div 
+              onClick={() => alert("Menu Démarrer Windows 11 : MyStay Voyager Sénégal fonctionne comme une Progressive Web App (PWA) de bureau ou application Electron native Windows !")}
+              className="grid grid-cols-2 gap-0.5 w-4 h-4 p-0.5 rounded cursor-pointer hover:bg-white/10 transition"
+              title="Démarrer Windows"
+            >
+              <div className="bg-[#0078D4] rounded-[1px]"></div>
+              <div className="bg-[#0078D4] rounded-[1px]"></div>
+              <div className="bg-[#0078D4] rounded-[1px]"></div>
+              <div className="bg-[#0078D4] rounded-[1px]"></div>
+            </div>
+
+            {/* Search Pill */}
+            <div className="hidden sm:flex items-center gap-2 bg-[#282828] hover:bg-[#303030] text-stone-400 px-3 py-1 rounded-full text-[11px] cursor-pointer border border-stone-700">
+              <span>🔍</span>
+              <span>Rechercher sur Windows...</span>
+            </div>
+
+            {/* Pinned App Icons */}
+            <div className="flex items-center gap-2 ml-1">
+              <span className="p-1 rounded bg-[#0078D4]/20 text-[#0078D4] font-bold text-xs" title="Navigateur Edge">🌐</span>
+              <span className="p-1 rounded hover:bg-white/10 text-stone-300 text-xs" title="Explorateur de fichiers">📁</span>
+              <span className="p-1 rounded hover:bg-white/10 text-amber-400 font-bold text-xs" title="MyStay Sénégal Desktop">🇸🇳</span>
+            </div>
+          </div>
+
+          {/* System Tray (Clock, Lang, Network, Volume) */}
+          <div className="flex items-center gap-3 text-stone-400 text-[11px]">
+            <span className="hidden sm:inline bg-stone-800 px-1.5 py-0.5 rounded text-[10px] text-stone-300 font-bold">FRA</span>
+            <span title="Réseau connecté">📶</span>
+            <span title="Haut-parleur">🔊</span>
+            <span title="Batterie 100%">🔋</span>
+            <div className="text-right leading-tight font-mono text-stone-200">
+              <div>12:45</div>
+              <div className="text-[9px] text-stone-400">03/10/2026</div>
             </div>
           </div>
         </div>
